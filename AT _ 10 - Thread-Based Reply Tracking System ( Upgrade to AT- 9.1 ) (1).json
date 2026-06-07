@@ -1,0 +1,618 @@
+{
+  "name": "AT : 10 - Thread-Based Reply Tracking System ( Upgrade to AT- 9.1 )",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -304,
+        -32
+      ],
+      "id": "fdf18cda-f9a1-449a-9f21-70dbe894dc14",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "ODwBjrxRlCoHe7BY",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "340ee7ec-7fd4-4e1b-99f7-4b470d73c6fc",
+              "name": "thread_id",
+              "value": "={{ $json.threadId }}",
+              "type": "string"
+            },
+            {
+              "id": "27eb1d74-8021-4e83-b0ba-afae361410cc",
+              "name": "email",
+              "value": "={{ $json.from.value[0].address }}",
+              "type": "string"
+            },
+            {
+              "id": "5d92762c-9db6-4e8f-9904-1f905ef4b60b",
+              "name": "body",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "9747f857-0506-4fde-9ff3-d56d112e43eb",
+              "name": "normalized_email",
+              "value": "={{ $json.from.value[0].address.toLowerCase().trim() }}\n",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -96,
+        -32
+      ],
+      "id": "6b894bab-dcb1-42f0-b1f4-09529a6ed747",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b7ed2c78-d7bd-4d27-aa60-510d0a98a2f8",
+              "leftValue": "={{$json.statusCode}}",
+              "rightValue": 200,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        320,
+        -32
+      ],
+      "id": "001c916b-9759-47d7-b354-61ac1c0892a6",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "85edd746-7737-46fc-9d92-e459adba8a00",
+              "leftValue": "={{ $json.data && $json.data.length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        896,
+        480
+      ],
+      "id": "0d14a7aa-f2b4-46a0-97a7-f4348fbf9f9a",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "resource": "lead",
+        "operation": "update",
+        "leadId": "={{ $json.data[0].id }}",
+        "updateFields": {
+          "customFields": {
+            "customFields": [
+              {
+                "fieldId": "Thread_ID",
+                "value": "={{ $node[\"Edit Fields\"].json.thread_id }}"
+              },
+              {
+                "fieldId": "Last_Reply_Time",
+                "value": "={{ new Date(new Date().getTime() + (5.5 * 60 * 60 * 1000))    .toISOString()    .split('.')[0]    .replace('Z', '+05:30') }}"
+              },
+              {
+                "fieldId": "Reply_Status",
+                "value": "Replied - w/o ref to trailing lead mail"
+              },
+              {
+                "fieldId": "Reply_Count",
+                "value": "={{ ($json.data[0].Reply_Count || 0) + 1 }}"
+              },
+              {
+                "fieldId": "Reply_History",
+                "value": "={{\n(() => {\n  const existing = $json.data?.[0]?.Reply_History || \"\";\n\n  const newReply =\n    \"Time: \" + new Date().toLocaleString() +\n    \"\\nFrom: \" + $node[\"Edit Fields\"].json.email +\n    \"\\nBody: \" + ($node[\"Edit Fields\"].json.body || \"No content\") +\n    \"\\n---------------------\\n\";\n\n  return existing + \"\\n\" + newReply;\n})()\n}}"
+              }
+            ]
+          },
+          "Lead_Status": "Contacted"
+        }
+      },
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [
+        1424,
+        416
+      ],
+      "id": "329a99cb-bf4b-4e6a-9d82-0326a75bfc97",
+      "name": "Update a lead",
+      "credentials": {
+        "zohoOAuth2Api": {
+          "id": "KRhe3Y4eb29Tbvlm",
+          "name": "Zoho account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "lead",
+        "Company": "QuickSolveAI",
+        "lastName": "={{ $('Edit Fields').item.json.email }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [
+        1216,
+        592
+      ],
+      "id": "a04d8ffb-b7a6-4119-8d90-c06c1fb80a49",
+      "name": "Create a lead",
+      "credentials": {
+        "zohoOAuth2Api": {
+          "id": "KRhe3Y4eb29Tbvlm",
+          "name": "Zoho account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ \"https://www.zohoapis.in/crm/v2/Leads/search?criteria=(Thread_ID:equals:'\" + $json.thread_id + \"')\" }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        112,
+        -32
+      ],
+      "id": "cd28fc05-9ec9-4e92-a9cc-14c889048cef",
+      "name": "HTTP Request- Thread ID search",
+      "alwaysOutputData": true,
+      "credentials": {
+        "oAuth2Api": {
+          "id": "PNJJJk4tPHBRTfm9",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://www.zohoapis.in/crm/v2/Leads/search?criteria=(Email:equals:{{ $node[\"Edit Fields\"].json.normalized_email }})",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        656,
+        480
+      ],
+      "id": "3a3bf32a-83e1-4403-958b-aab0aad49d57",
+      "name": "HTTP Request- Email search",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "PNJJJk4tPHBRTfm9",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8aafd0e5-4006-4307-8aac-4192f22a4fb2",
+              "leftValue": "={{ ($json.body.data[0].Reply_Count ?? 0) === 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        624,
+        -48
+      ],
+      "id": "4c7baeee-9a30-47d0-8182-8bb3ce483931",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "7bc1f49c-4f7d-4926-82d4-3fd5b51a14ab",
+              "leftValue": "={{ $json.data[0].Thread_ID }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1104,
+        320
+      ],
+      "id": "ceb60f05-bad6-41c7-baab-dfee67180afd",
+      "name": "IF_EMAIL_SAFE"
+    },
+    {
+      "parameters": {
+        "resource": "lead",
+        "operation": "update",
+        "leadId": "={{ $json.body.data[0].id }}",
+        "updateFields": {
+          "customFields": {
+            "customFields": [
+              {
+                "fieldId": "Last_Reply_Time",
+                "value": "={{ new Date(new Date().getTime() + (5.5 * 60 * 60 * 1000))    .toISOString()    .split('.')[0]    .replace('Z', '+05:30') }}"
+              },
+              {
+                "fieldId": "Reply_Status",
+                "value": "First Reply"
+              },
+              {
+                "fieldId": "Reply_Count",
+                "value": "={{ ($json.body.data[0].Reply_Count || 0) + 1 }}"
+              },
+              {
+                "fieldId": "Reply_History",
+                "value": "={{\n(() => {\n  const existing = $json.body.data[0].Reply_History || \"\";\n  const newReply = $node[\"Edit Fields\"].json.body;\n\n  const formattedNew = \n    \"-----\\n\" +\n    \"Time: \" + new Date().toLocaleString() + \"\\n\" +\n    \"Reply:\\n\" + newReply;\n\n  const combined = existing \n    ? existing + \"\\n\" + formattedNew \n    : formattedNew;\n\n  // keep last 5 replies only\n  const parts = combined.split(\"-----\");\n  const lastFive = parts.slice(-5).join(\"-----\");\n\n  return lastFive.trim();\n})()\n}}"
+              },
+              {
+                "fieldId": "Thread_ID",
+                "value": "={{ $('Edit Fields').item.json.thread_id }}"
+              }
+            ]
+          },
+          "Lead_Status": "Contacted"
+        }
+      },
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [
+        928,
+        -176
+      ],
+      "id": "d2fbe645-c047-42b1-9204-122745e50e83",
+      "name": "Update a lead- FIRST REPLY",
+      "credentials": {
+        "zohoOAuth2Api": {
+          "id": "KRhe3Y4eb29Tbvlm",
+          "name": "Zoho account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "lead",
+        "operation": "update",
+        "leadId": "={{ $json.body.data[0].id }}",
+        "updateFields": {
+          "customFields": {
+            "customFields": [
+              {
+                "fieldId": "Last_Reply_Time",
+                "value": "={{ new Date(new Date().getTime() + (5.5 * 60 * 60 * 1000))    .toISOString()    .split('.')[0]    .replace('Z', '+05:30') }}"
+              },
+              {
+                "fieldId": "Reply_Status",
+                "value": "Follow-up"
+              },
+              {
+                "fieldId": "Reply_Count",
+                "value": "={{ ($json.body.data[0].Reply_Count || 0) + 1 }}"
+              },
+              {
+                "fieldId": "Reply_History",
+                "value": "={{\n(() => {\n  const existing = $json.body.data[0].Reply_History || \"\";\n  const newReply = $node[\"Edit Fields\"].json.body;\n\n  const formattedNew = \n    \"-----\\n\" +\n    \"Time: \" + new Date().toLocaleString() + \"\\n\" +\n    \"Reply:\\n\" + newReply;\n\n  const combined = existing \n    ? existing + \"\\n\" + formattedNew \n    : formattedNew;\n\n  // keep last 5 replies only\n  const parts = combined.split(\"-----\");\n  const lastFive = parts.slice(-5).join(\"-----\");\n\n  return lastFive.trim();\n})()\n}}"
+              },
+              {
+                "fieldId": "Thread_ID",
+                "value": "={{ $('Edit Fields').item.json.thread_id }}"
+              }
+            ]
+          },
+          "Lead_Status": "Contacted"
+        }
+      },
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [
+        928,
+        80
+      ],
+      "id": "58ac1ba7-d2ff-4f10-b075-5bfab06c4b2e",
+      "name": "Update a lead- FOLLOW UP",
+      "credentials": {
+        "zohoOAuth2Api": {
+          "id": "KRhe3Y4eb29Tbvlm",
+          "name": "Zoho account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "lead",
+        "operation": "update",
+        "leadId": "={{ $json.data[0].id }}",
+        "updateFields": {
+          "customFields": {
+            "customFields": [
+              {
+                "fieldId": "Thread_ID",
+                "value": "={{ $json.data[0].Thread_ID }}"
+              },
+              {
+                "fieldId": "Last_Reply_Time",
+                "value": "={{ new Date(new Date().getTime() + (5.5 * 60 * 60 * 1000))    .toISOString()    .split('.')[0]    .replace('Z', '+05:30') }}"
+              },
+              {
+                "fieldId": "Reply_Status",
+                "value": "Replied - w/o ref to trailing lead mail"
+              },
+              {
+                "fieldId": "Reply_Count",
+                "value": "={{ ($json.data[0].Reply_Count || 0) + 1 }}"
+              },
+              {
+                "fieldId": "Reply_History",
+                "value": "={{\n(() => {\n  const existing = $json.data?.[0]?.Reply_History || \"\";\n\n  const newReply =\n    \"Time: \" + new Date().toLocaleString() +\n    \"\\nFrom: \" + $node[\"Edit Fields\"].json.email +\n    \"\\nBody: \" + ($node[\"Edit Fields\"].json.body || \"No content\") +\n    \"\\n---------------------\\n\";\n\n  return existing + \"\\n\" + newReply;\n})()\n}}"
+              }
+            ]
+          },
+          "Lead_Status": "Contacted"
+        }
+      },
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [
+        1408,
+        176
+      ],
+      "id": "c9a8e009-b8ca-4f9f-b83e-9cc8e3c944ed",
+      "name": "Update a lead1",
+      "credentials": {
+        "zohoOAuth2Api": {
+          "id": "KRhe3Y4eb29Tbvlm",
+          "name": "Zoho account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request- Thread ID search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request- Email search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "IF_EMAIL_SAFE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create a lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request- Thread ID search": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request- Email search": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "Update a lead- FIRST REPLY",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update a lead- FOLLOW UP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_EMAIL_SAFE": {
+      "main": [
+        [
+          {
+            "node": "Update a lead1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update a lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update a lead- FIRST REPLY": {
+      "main": [
+        []
+      ]
+    },
+    "Update a lead- FOLLOW UP": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "b341c804-4663-46c8-9050-9c048d57b23b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b4c7aec71c23cdc802c4dfebcd5b169106ef811e3f5d7ee083aa88bf7f83f60b"
+  },
+  "id": "P0ambsq4X7QF4KLj",
+  "tags": []
+}
